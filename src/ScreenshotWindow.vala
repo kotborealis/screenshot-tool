@@ -528,15 +528,6 @@ namespace Screenshot {
             });
         }
 
-        // private void show_error_dialog () {
-        //     var dialog = new Gtk.MessageDialog (this, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
-        //                                         Gtk.ButtonsType.CLOSE, _("Could not capture screenshot"));
-        //     dialog.secondary_text = _("Image not saved");
-        //     dialog.deletable = false;
-        //     dialog.run ();
-        //     dialog.destroy ();
-        // }
-
         private void redact_text (bool redact) {
             var settings = new Settings ("org.gnome.desktop.interface");
             if (redact) {
