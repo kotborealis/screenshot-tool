@@ -272,7 +272,7 @@ namespace Screenshot {
             }
 
             if (screenshot == null) {
-                show_error_dialog ();
+                ScreenshotApp.show_error_dialog ();
                 return false;
             }
 
@@ -343,7 +343,7 @@ namespace Screenshot {
                                 this.destroy ();
                             }
                         } catch (GLib.Error e) {
-                            show_error_dialog ();
+                            ScreenshotApp.show_error_dialog ();
                             debug (e.message);
                         }
                     }
@@ -358,48 +358,10 @@ namespace Screenshot {
                 save_dialog.show_all ();
             } else {
                 if (to_upload) {
-                    string tmp_file;
-
-                    try{
-                        GLib.Process.spawn_command_line_sync("mktemp '/tmp/i-XXXXXXX.png'", out tmp_file);
-                    }
-                    catch(GLib.SpawnError e){
-                        show_error_dialog ();
-                        debug (e.message);
-                    }
-
-                    tmp_file = tmp_file.replace("\n", "");
-
-                    try{
-                        screenshot.save(tmp_file, "png");
-                    }
-                    catch(GLib.Error e){
-                        show_error_dialog ();
-                        debug (e.message);   
-                    }
-
-                    string cmd_curl = "curl -sH \"Authorization: Client-ID %s\" -F \"image=@%s\" \"https://api.imgur.com/3/upload\"";
-                    string curl_stdout;
-
-                    try{
-                        GLib.Process.spawn_command_line_sync(cmd_curl.printf("3e7a4deb7ac67da", tmp_file), out curl_stdout);
-                    }
-                    catch(GLib.SpawnError e){
-                        show_error_dialog ();
-                        debug (e.message);
-                    }
-
-                    try{
-                        GLib.MatchInfo m;
-                        var link_regex = new Regex(".*\"link\":\"([^\"]*)\".*");
-                        link_regex.match(curl_stdout, 0, out m);
-                        string link = m.fetch(1).replace("\\/", "/");
-                        Gtk.Clipboard.get_default(this.get_display()).set_text(link, link.length);    
-                    }
-                    catch(RegexError e){
-                        show_error_dialog ();
-                        debug (e.message);
-                    }
+                    string link = ScreenshotApp.upload_image(screenshot);
+                    Gtk.Clipboard.get_default(this.get_display()).set_text(link, link.length);
+                    var n = new GLib.Notification("Uploaded: %s".printf(link));
+                    ScreenshotApp.get_instance().send_notification("upload-complete", n);
                 } else if (to_clipboard) {
                     Gtk.Clipboard.get_default (this.get_display ()).set_image (screenshot);
                 } else {
@@ -411,7 +373,7 @@ namespace Screenshot {
                     try {
                         save_file (file_name, format, "", screenshot);
                     } catch (GLib.Error e) {
-                        show_error_dialog ();
+                        ScreenshotApp.show_error_dialog ();
                         debug (e.message);
                     }
                 }
@@ -566,14 +528,14 @@ namespace Screenshot {
             });
         }
 
-        private void show_error_dialog () {
-            var dialog = new Gtk.MessageDialog (this, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
-                                                Gtk.ButtonsType.CLOSE, _("Could not capture screenshot"));
-            dialog.secondary_text = _("Image not saved");
-            dialog.deletable = false;
-            dialog.run ();
-            dialog.destroy ();
-        }
+        // private void show_error_dialog () {
+        //     var dialog = new Gtk.MessageDialog (this, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
+        //                                         Gtk.ButtonsType.CLOSE, _("Could not capture screenshot"));
+        //     dialog.secondary_text = _("Image not saved");
+        //     dialog.deletable = false;
+        //     dialog.run ();
+        //     dialog.destroy ();
+        // }
 
         private void redact_text (bool redact) {
             var settings = new Settings ("org.gnome.desktop.interface");

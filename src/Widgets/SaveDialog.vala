@@ -40,15 +40,6 @@ namespace Screenshot.Widgets {
                     transient_for: parent);
         }
 
-        private void show_error_dialog () {
-            var dialog = new Gtk.MessageDialog (this, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
-                                                Gtk.ButtonsType.CLOSE, _("Could not capture screenshot"));
-            dialog.secondary_text = _("Image not saved");
-            dialog.deletable = false;
-            dialog.run ();
-            dialog.destroy ();
-        }
-
         construct {
             set_keep_above (true);
 
@@ -158,49 +149,11 @@ namespace Screenshot.Widgets {
             });
 
             upload_btn.clicked.connect(() => {
-                string tmp_file;
-
-                    try{
-                        GLib.Process.spawn_command_line_sync("mktemp '/tmp/i-XXXXXXX.png'", out tmp_file);
-                    }
-                    catch(GLib.SpawnError e){
-                        show_error_dialog ();
-                        debug (e.message);
-                    }
-
-                    tmp_file = tmp_file.replace("\n", "");
-
-                    try{
-                        pixbuf.save(tmp_file, "png");
-                    }
-                    catch(GLib.Error e){
-                        show_error_dialog ();
-                        debug (e.message);   
-                    }
-
-                    string cmd_curl = "curl -sH \"Authorization: Client-ID %s\" -F \"image=@%s\" \"https://api.imgur.com/3/upload\"";
-                    string curl_stdout;
-
-                    try{
-                        GLib.Process.spawn_command_line_sync(cmd_curl.printf("3e7a4deb7ac67da", tmp_file), out curl_stdout);
-                    }
-                    catch(GLib.SpawnError e){
-                        show_error_dialog ();
-                        debug (e.message);
-                    }
-
-                    try{
-                        GLib.MatchInfo m;
-                        var link_regex = new Regex(".*\"link\":\"([^\"]*)\".*");
-                        link_regex.match(curl_stdout, 0, out m);
-                        string link = m.fetch(1).replace("\\/", "/");
-                        Gtk.Clipboard.get_default(this.get_display()).set_text(link, link.length);    
-                    }
-                    catch(RegexError e){
-                        show_error_dialog ();
-                        debug (e.message);
-                    }
-                    this.close();
+                string link = ScreenshotApp.upload_image(pixbuf);
+                Gtk.Clipboard.get_default(this.get_display()).set_text(link, link.length);
+                var n = new GLib.Notification("Uploaded: %s".printf(link));
+                ScreenshotApp.get_instance().send_notification("upload-complete", n);    
+                this.close();
             });
 
             retry_btn.clicked.connect (() => {

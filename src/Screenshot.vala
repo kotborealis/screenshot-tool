@@ -170,5 +170,50 @@ namespace Screenshot {
 
             return res;
         }
+
+        public static void show_error_dialog (string? text = null, string? text2 = null) {
+            var dialog = new Gtk.MessageDialog (null, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
+                                                Gtk.ButtonsType.CLOSE, _(text ?? "Could not capture screenshot"));
+            dialog.secondary_text = _(text2 ?? "Image not saved");
+            dialog.deletable = false;
+            dialog.run ();
+            dialog.destroy ();
+        }
+
+        public static string? upload_image (Gdk.Pixbuf image){
+            string? link = null;
+            try{
+                string tmp_file;
+
+                GLib.Process.spawn_command_line_sync("mktemp '/tmp/i-XXXXXXX.png'", out tmp_file);
+
+                tmp_file = tmp_file.replace("\n", "");
+                image.save(tmp_file, "png");
+
+                string cmd_curl = "curl -sH \"Authorization: Client-ID %s\" -F \"image=@%s\" \"https://api.imgur.com/3/upload\"";
+                string curl_stdout;
+
+                GLib.Process.spawn_command_line_sync(cmd_curl.printf("3e7a4deb7ac67da", tmp_file), out curl_stdout);
+
+                GLib.MatchInfo m;
+                var link_regex = new Regex(".*\"link\":\"([^\"]*)\".*");
+                link_regex.match(curl_stdout, 0, out m);
+                link = m.fetch(1).replace("\\/", "/");
+                //Gtk.Clipboard.get_default(this.get_display()).set_text(link, link.length);    
+            }
+            catch(GLib.Error e){
+                show_error_dialog ("Failed to save temp file");
+                debug (e.message);
+            }
+            catch(GLib.SpawnError e){
+                show_error_dialog ("Failed to upload image");
+                debug (e.message);
+            }
+            catch(RegexError e){
+                show_error_dialog ("Failed to upload image");
+                debug (e.message);
+            }
+            return link;
+        }
     }
 }
