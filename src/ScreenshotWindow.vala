@@ -40,6 +40,7 @@ namespace Screenshot {
         private bool redact;
         private int delay;
         private bool to_clipboard;
+        private bool to_upload;
 
         public ScreenshotWindow () {
             Object (border_width: 6,
@@ -52,6 +53,7 @@ namespace Screenshot {
             redact = settings.get_boolean ("redact");
             delay = settings.get_int ("delay");
             to_clipboard = false;
+            to_upload = false;
         }
 
         construct {
@@ -170,7 +172,7 @@ namespace Screenshot {
             cancel_btn.clicked.connect (cancel_clicked);
         }
 
-        public ScreenshotWindow.from_cmd (int? action, int? delay, bool? grab_pointer, bool? redact, bool? clipboard) {
+        public ScreenshotWindow.from_cmd (int? action, int? delay, bool? grab_pointer, bool? redact, bool? clipboard, bool? upload = false) {
             if (delay != null) {
                 this.delay = int.max (0, delay);
             }
@@ -199,6 +201,10 @@ namespace Screenshot {
 
             if (clipboard != null) {
                 to_clipboard = clipboard;
+            }
+
+            if (upload != null) {
+                to_upload = upload;
             }
 
             close_on_save = true;
@@ -351,7 +357,50 @@ namespace Screenshot {
 
                 save_dialog.show_all ();
             } else {
-                if (to_clipboard) {
+                if (to_upload) {
+                    string tmp_file;
+
+                    try{
+                        GLib.Process.spawn_command_line_sync("mktemp '/tmp/i-XXXXXXX.png'", out tmp_file);
+                    }
+                    catch(GLib.SpawnError e){
+                        show_error_dialog ();
+                        debug (e.message);
+                    }
+
+                    tmp_file = tmp_file.replace("\n", "");
+
+                    try{
+                        screenshot.save(tmp_file, "png");
+                    }
+                    catch(GLib.Error e){
+                        show_error_dialog ();
+                        debug (e.message);   
+                    }
+
+                    string cmd_curl = "curl -sH \"Authorization: Client-ID %s\" -F \"image=@%s\" \"https://api.imgur.com/3/upload\"";
+                    string curl_stdout;
+
+                    try{
+                        GLib.Process.spawn_command_line_sync(cmd_curl.printf("3e7a4deb7ac67da", tmp_file), out curl_stdout);
+                    }
+                    catch(GLib.SpawnError e){
+                        show_error_dialog ();
+                        debug (e.message);
+                    }
+
+                    try{
+                        GLib.MatchInfo m;
+                        var link_regex = new Regex(".*\"link\":\"([^\"]*)\".*");
+                        link_regex.match(curl_stdout, 0, out m);
+                        string link = m.fetch(1).replace("\\/", "/");
+                        Gtk.Clipboard.get_default(this.get_display()).set_text(link, link.length);    
+                    }
+                    catch(RegexError e){
+                        show_error_dialog ();
+                        debug (e.message);
+                    }
+                } else if (to_clipboard) {
                     Gtk.Clipboard.get_default (this.get_display ()).set_image (screenshot);
                 } else {
                     var date_time = new GLib.DateTime.now_local ().format ("%Y-%m-%d %H.%M.%S");
